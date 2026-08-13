@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>TableScore</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --felt: #0d2a24;
+      --felt-deep: #071914;
+      --felt-lift: #143a32;
+      --ink: #e8efe9;
+      --muted: #9bb5ab;
+      --amber: #e4a03a;
+      --amber-deep: #c47e18;
+      --line: rgba(232, 239, 233, 0.12);
+      --danger: #e07a6a;
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      --radius: 18px;
+      --font-ui: "Outfit", sans-serif;
+      --font-brand: "Syne", sans-serif;
+      --ad-bg: rgba(7, 25, 20, 0.72);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: var(--font-ui);
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 90% 60% at 50% -10%, #1a4a3e 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 100% 100%, #0f3d32 0%, transparent 45%),
+        linear-gradient(165deg, var(--felt) 0%, var(--felt-deep) 100%);
+      background-attachment: fixed;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.07;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      z-index: 0;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      width: min(440px, 100%);
+      margin: 0 auto;
+      padding: 1rem 1.1rem 2.5rem;
+      min-height: 100dvh;
+    }
+
+    .ad-slot {
+      display: grid;
+      place-items: center;
+      min-height: 72px;
+      margin: 0 0 1.1rem;
+      border: 1px dashed rgba(232, 239, 233, 0.22);
+      border-radius: 14px;
+      background: var(--ad-bg);
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .ad-slot[hidden] {
+      display: none !important;
+    }
+
+    .ad-slot.footer {
+      margin: 1.4rem 0 0;
+      min-height: 90px;
+    }
+
+    .brand {
+      font-family: var(--font-brand);
+      font-weight: 800;
+      font-size: clamp(2rem, 8vw, 2.6rem);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin: 0.35rem 0 0.35rem;
+    }
+
+    .lede {
+      margin: 0 0 1.35rem;
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.45;
+      max-width: 30ch;
+    }
+
+    .screen { animation: rise 0.35s ease both; }
+    .screen[hidden] { display: none; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse-score {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+
+    .score-flash { animation: pulse-score 0.35s ease; }
+
+    label, .field-label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.45rem;
+    }
+
+    .field { margin-bottom: 1.1rem; }
+
+    select, input[type="text"], input[type="number"], textarea {
+      width: 100%;
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(7, 25, 20, 0.55);
+      color: var(--ink);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      font: inherit;
+      font-size: 1.05rem;
+      outline: none;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    textarea {
+      min-height: 88px;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      border-color: rgba(228, 160, 58, 0.55);
+      background: rgba(7, 25, 20, 0.8);
+    }
+
+    .players {
+      display: grid;
+      gap: 0.55rem;
+      margin-bottom: 0.65rem;
+    }
+
+    .player-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.45rem;
+      align-items: center;
+    }
+
+    .ghost-btn, .primary-btn, .metric-btn, .text-btn, .link-btn {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+    }
+
+    .ghost-btn, .text-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.75rem 0.9rem;
+      font-weight: 500;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .ghost-btn:hover, .text-btn:hover {
+      color: var(--ink);
+      border-color: rgba(232, 239, 233, 0.28);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .text-btn {
+      width: 100%;
+      margin-top: 0.55rem;
+      padding: 0.7rem;
+      font-size: 0.95rem;
+    }
+
+    .link-btn {
+      background: none;
+      color: var(--amber);
+      padding: 0;
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .primary-btn {
+      width: 100%;
+      margin-top: 0.2rem;
+      padding: 0.95rem 1rem;
+      border-radius: 14px;
+      background: linear-gradient(180deg, var(--amber) 0%, var(--amber-deep) 100%);
+      color: #1a1206;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+      box-shadow: 0 10px 24px rgba(196, 126, 24, 0.28);
+      transition: transform 0.12s ease, filter 0.12s ease;
+    }
+
+    .primary-btn:hover { filter: brightness(1.05); }
+    .primary-btn:active { transform: scale(0.98); }
+    .primary-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+    }
+
+    .password-box {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.55rem;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: rgba(7, 25, 20, 0.55);
+      border-radius: 12px;
+      padding: 0.7rem 0.75rem 0.7rem 1rem;
+    }
+
+    .password-value {
+      font-family: var(--font-brand);
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      color: var(--amber);
+      margin: 0;
+    }
+
+    .password-hint {
+      margin: 0.45rem 0 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+
+    .join-panel {
+      margin: 0.35rem 0 1.75rem;
+      padding: 0.95rem;
+      border-radius: 14px;
+      border: 1px solid rgba(228, 160, 58, 0.28);
+      background: rgba(32, 84, 72, 0.72);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .join-panel[hidden] { display: none; }
+
+    .join-panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .join-panel-head .field-label {
+      margin: 0;
+    }
+
+    .join-close {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: 10px;
+      line-height: 1;
+      font-size: 1.15rem;
+      flex-shrink: 0;
+    }
+
+    .join-panel > .field > label {
+      color: #d5e8df;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .error {
+      margin: 0.85rem 0 0;
+      color: var(--danger);
+      font-size: 0.92rem;
+      min-height: 1.2em;
+    }
+
+    .char-count {
+      margin: 0.35rem 0 0;
+      text-align: right;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .radio-group {
+      display: grid;
+      gap: 0.45rem;
+    }
+
+    .radio-option {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.65rem;
+      align-items: center;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(7, 25, 20, 0.45);
+      cursor: pointer;
+    }
+
+    .radio-option:has(input:checked) {
+      border-color: rgba(228, 160, 58, 0.55);
+      background: rgba(228, 160, 58, 0.08);
+    }
+
+    .radio-option input {
+      accent-color: var(--amber);
+      width: 1.05rem;
+      height: 1.05rem;
+    }
+
+    .radio-option span {
+      font-size: 0.98rem;
+      font-weight: 500;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .game-label {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .table-title {
+      font-family: var(--font-brand);
+      font-size: clamp(1.55rem, 6vw, 1.95rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin: 0;
+      color: var(--amber);
+    }
+
+    .table-password {
+      margin: 0.4rem 0 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .leave {
+      flex-shrink: 0;
+      padding: 0.55rem 0.8rem;
+      font-size: 0.85rem;
+    }
+
+    .topbar-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.4rem;
+      flex-shrink: 0;
+    }
+
+    .topbar-actions .ghost-btn {
+      white-space: nowrap;
+    }
+
+    .board { display: grid; gap: 0.9rem; }
+
+    .player-panel {
+      background: rgba(7, 25, 20, 0.55);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem 1rem 0.85rem;
+      box-shadow: var(--shadow);
+    }
+
+    .player-panel.winner {
+      border: 2px solid #7CFFB2;
+      background: linear-gradient(165deg, rgba(61, 255, 138, 0.28) 0%, rgba(20, 90, 55, 0.72) 55%, rgba(7, 40, 28, 0.9) 100%);
+      box-shadow: 0 0 0 3px rgba(61, 255, 138, 0.2), 0 16px 32px rgba(34, 214, 106, 0.22);
+    }
+
+    .winner-banner {
+      margin: 0 0 0.85rem;
+      padding: 0.7rem 0.8rem;
+      border-radius: 12px;
+      border: 1px solid rgba(124, 255, 178, 0.65);
+      background: linear-gradient(180deg, #3DFF8A 0%, #22D66A 100%);
+      color: #062414;
+      font-weight: 800;
+      font-size: 0.92rem;
+      line-height: 1.35;
+    }
+
+    .player-name {
+      font-weight: 700;
+      font-size: 1.15rem;
+      margin: 0;
+    }
+
+    .player-identity {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-width: 0;
+    }
+
+    .live-total {
+      font-family: var(--font-brand);
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0;
+      color: var(--amber);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metrics { display: grid; gap: 0.65rem; }
+
+    .metric {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem 0.75rem;
+      align-items: center;
+    }
+
+    .metric-label {
+      font-size: 0.9rem;
+      color: var(--muted);
+      text-transform: capitalize;
+    }
+
+    .metric-controls {
+      display: grid;
+      grid-template-columns: 44px minmax(56px, 64px) 44px;
+      gap: 0.35rem;
+      align-items: center;
+    }
+
+    .metric-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--felt-lift);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      font-size: 1.35rem;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .metric-btn:active { transform: scale(0.94); background: #1c4f44; }
+
+    .metric-value {
+      width: 100%;
+      text-align: center;
+      font-weight: 700;
+      font-size: 1.15rem;
+      font-variant-numeric: tabular-nums;
+      padding: 0.45rem 0.25rem;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(7, 25, 20, 0.75);
+      color: var(--ink);
+      font-family: inherit;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+
+    .metric-value:focus {
+      border-color: rgba(228, 160, 58, 0.55);
+      background: rgba(7, 25, 20, 0.95);
+    }
+
+    .metric-value::-webkit-outer-spin-button,
+    .metric-value::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .hint {
+      margin: 1.1rem 0 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin: 0 0 0.95rem;
+    }
+
+    .meta-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(7, 25, 20, 0.55);
+      color: var(--ink);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .meta-chip span {
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+    }
+
+    .meta-chip-edit {
+      padding-right: 0.35rem;
+    }
+
+    .meta-edit-input {
+      width: 4.2rem;
+      border: 1px solid rgba(228, 160, 58, 0.35);
+      background: rgba(7, 25, 20, 0.75);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.2rem 0.45rem;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+
+    .meta-edit-input:focus {
+      border-color: rgba(228, 160, 58, 0.75);
+    }
+
+    .meta-edit-input::-webkit-outer-spin-button,
+    .meta-edit-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .status-banner {
+      margin: 0 0 0.9rem;
+      padding: 0.85rem 1rem;
+      border-radius: 14px;
+      border: 1px solid rgba(228, 160, 58, 0.35);
+      background: rgba(228, 160, 58, 0.1);
+      color: var(--ink);
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .status-banner.callout {
+      border: 2px solid #7CFFB2;
+      background: linear-gradient(180deg, #3DFF8A 0%, #22D66A 100%);
+      color: #062414;
+      font-weight: 800;
+      font-size: 1.02rem;
+      box-shadow: 0 0 0 3px rgba(61, 255, 138, 0.22), 0 12px 28px rgba(34, 214, 106, 0.28);
+      animation: callout-pop 0.35s ease;
+    }
+
+    @keyframes callout-pop {
+      from { transform: scale(0.98); opacity: 0.7; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .table-actions {
+      display: grid;
+      gap: 0.55rem;
+      margin: 0 0 1rem;
+    }
+
+    .add-player-form {
+      margin: 1rem 0 0;
+    }
+
+    .add-player-form label {
+      margin-bottom: 0.45rem;
+    }
+
+    .add-player-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.45rem;
+      align-items: center;
+    }
+
+    .add-player-row .ghost-btn {
+      padding: 0.85rem 1rem;
+      white-space: nowrap;
+    }
+
+    .reveal-field {
+      padding: 0.95rem;
+      border-radius: 14px;
+      border: 1px solid rgba(228, 160, 58, 0.28);
+      background: rgba(32, 84, 72, 0.72);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .reveal-field > .field-label,
+    .reveal-field > label {
+      color: #d5e8df;
+    }
+
+    .reveal-field .nested-field {
+      margin-top: 0.95rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid rgba(232, 239, 233, 0.12);
+    }
+
+    .starting-reminder {
+      margin: 0 0 0.95rem;
+    }
+
+    .sort-controls {
+      display: grid;
+      gap: 0.3rem;
+    }
+
+    .sort-btn {
+      width: 34px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--felt-lift);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .sort-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .player-head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.65rem;
+      align-items: center;
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.7rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .player-head.no-sort {
+      grid-template-columns: 1fr auto;
+    }
+
+    .player-sub {
+      margin: 0.2rem 0 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .player-stats-pill {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      flex-shrink: 0;
+      margin: 0;
+      padding: 0.3rem 0.55rem;
+      border-radius: 12px;
+      border: 1px solid rgba(228, 160, 58, 0.4);
+      background: rgba(228, 160, 58, 0.18);
+      color: #f3d39a;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .player-stats-pill span {
+      display: block;
+      padding: 0.12rem 0;
+    }
+
+    .player-stats-pill span + span {
+      border-top: 1px solid rgba(228, 160, 58, 0.28);
+      margin-top: 0.12rem;
+      padding-top: 0.22rem;
+    }
+
+    .intake-title {
+      font-family: var(--font-brand);
+      font-size: 1.7rem;
+      font-weight: 800;
+      margin: 0.2rem 0 0.35rem;
+      letter-spacing: -0.02em;
+    }
+
+    .intake-sub {
+      margin: 0 0 1.2rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Lobby -->
+    <section id="lobby" class="screen" aria-label="Create a game">
+      <div class="ad-slot" aria-label="Advertisement">Ad placement</div>
+      <p class="game-label">Live table scoring</p>
+      <h1 class="brand">TableScore</h1>
+      <p class="lede">Set up your table, share the room password, and score together.</p>
+      <p style="margin: -0.7rem 0 1.35rem;">
+        <button type="button" class="link-btn" id="show-join">Joining a table? Enter password</button>
+      </p>
+
+      <div class="join-panel" id="join-panel" hidden>
+        <form id="join-form">
+          <div class="join-panel-head">
+            <span class="field-label">Room password</span>
+            <button type="button" class="ghost-btn join-close" id="close-join" aria-label="Close join panel">×</button>
+          </div>
+          <div class="field">
+            <label for="join-password" class="visually-hidden">Room password</label>
+            <input id="join-password" type="text" maxlength="4" placeholder="" autocomplete="off" spellcheck="false" />
+          </div>
+          <button type="submit" class="primary-btn" id="join-btn">Enter room</button>
+        </form>
+      </div>
+
+      <form id="create-form">
+        <div class="field">
+          <label for="custom-game-name">Game Name</label>
+          <input id="custom-game-name" type="text" maxlength="60" placeholder="Name your game" required />
+        </div>
+
+        <div class="field">
+          <label>Players</label>
+          <div id="players" class="players"></div>
+          <button type="button" class="text-btn" id="add-player">+ Add player</button>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Room password</span>
+          <div class="password-box">
+            <p class="password-value" id="room-password">····</p>
+            <button type="button" class="ghost-btn" id="refresh-password" aria-label="Generate a new password">New</button>
+          </div>
+          <p class="password-hint">Share this word so others can join. It can’t be edited.</p>
+        </div>
+
+        <button type="submit" class="primary-btn" id="create-btn">Create room</button>
+      </form>
+
+      <p class="error" id="lobby-error" role="alert"></p>
+    </section>
+
+    <!-- Custom game intake -->
+    <section id="intake" class="screen" hidden aria-label="Custom game setup">
+      <p class="game-label">Custom game setup</p>
+      <h2 class="intake-title" id="intake-game-name">Custom Game</h2>
+      <p class="intake-sub">Tell the table how this game should score and end.</p>
+      <button type="button" class="ghost-btn" id="intake-back-btn" hidden style="width:100%;margin:0 0 1rem;">Back to scorecard</button>
+
+      <form id="intake-form">
+        <div class="field">
+          <label for="game-description">Game Description</label>
+          <textarea id="game-description" maxlength="500" placeholder="Add Game URL if players want to see rules"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="optional-notes">Optional Notes</label>
+          <textarea id="optional-notes" maxlength="300" placeholder="House rules, reminders, etc."></textarea>
+          <p class="char-count"><span id="notes-count">0</span>/300</p>
+        </div>
+
+        <div class="field">
+          <span class="field-label">How to win</span>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="how_to_win" value="high_score" checked /><span>High Score</span></label>
+            <label class="radio-option"><input type="radio" name="how_to_win" value="low_score" /><span>Low Score</span></label>
+          </div>
+        </div>
+
+        <div class="field reveal-field" id="starting-score-field" hidden>
+          <label for="starting-score">Starting score <span style="text-transform:none;letter-spacing:0;font-weight:500;">(optional)</span></label>
+          <input id="starting-score" type="number" step="1" placeholder="e.g. 501" />
+          <p class="password-hint">If set, everyone begins at this score. Lowest score wins.</p>
+        </div>
+
+        <div class="field">
+          <span class="field-label">How to End Game</span>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="how_to_end" value="manually" checked /><span>Manually</span></label>
+            <label class="radio-option"><input type="radio" name="how_to_end" value="target_score" /><span>Target score</span></label>
+          </div>
+        </div>
+
+        <div class="field reveal-field" id="target-field" hidden>
+          <label for="target-score">Target score</label>
+          <input id="target-score" type="number" step="1" placeholder="e.g. 100" />
+
+          <div class="nested-field">
+            <span class="field-label">When target is reached</span>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="target_score_action" value="complete_round" />
+                <span>Completes round</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="target_score_action" value="end_game" />
+                <span>Ends game completely</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="nested-field" id="target-rounds-field" hidden>
+            <label for="target-rounds-count"># of rounds completed</label>
+            <input id="target-rounds-count" type="number" min="1" max="999" placeholder="e.g. 3" />
+            <p class="password-hint">After the target is hit, that round ends and play advances until these rounds are completed.</p>
+          </div>
+        </div>
+
+        <div class="field" id="keep-score-field">
+          <span class="field-label">How to keep score</span>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="how_to_keep_score" value="in_rounds" /><span>In rounds</span></label>
+            <label class="radio-option" id="keep-incremental-option"><input type="radio" name="how_to_keep_score" value="incrementally" checked /><span>Incrementally</span></label>
+          </div>
+          <p class="password-hint" id="keep-score-lock-hint" hidden>Locked to In rounds because target score completes each round.</p>
+        </div>
+
+        <div class="field">
+          <span class="field-label">How to sort players</span>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="how_to_sort_players" value="manually" /><span>Manually</span></label>
+            <label class="radio-option"><input type="radio" name="how_to_sort_players" value="by_score" checked /><span>By score</span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">How to display scores</span>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="how_to_display_scores" value="total_scores" checked /><span>Total Scores</span></label>
+            <label class="radio-option"><input type="radio" name="how_to_display_scores" value="history" /><span>History</span></label>
+          </div>
+        </div>
+
+        <button type="submit" class="primary-btn" id="intake-btn">Start scoring</button>
+        <p class="error" id="intake-error" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- Live scoreboard -->
+    <section id="table" class="screen" hidden aria-label="Live scoreboard">
+      <div class="topbar">
+        <div>
+          <h1 class="table-title" id="table-game">Game</h1>
+          <p class="table-password" id="table-password">Password: ----</p>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" class="ghost-btn" id="edit-rules-btn">Edit rules</button>
+          <button type="button" class="ghost-btn leave" id="leave-btn">Leave</button>
+        </div>
+      </div>
+
+      <div id="table-meta" class="meta-row"></div>
+      <div id="table-status" class="status-banner" hidden></div>
+      <div id="table-actions" class="table-actions"></div>
+      <div id="board" class="board"></div>
+      <form id="add-player-form" class="add-player-form" hidden>
+        <label for="add-player-name">Add player</label>
+        <div class="add-player-row">
+          <input id="add-player-name" type="text" maxlength="24" placeholder="Player name" autocomplete="off" />
+          <button type="submit" class="ghost-btn" id="add-player-submit">Add</button>
+        </div>
+      </form>
+      <p class="hint">Scores refresh live</p>
+      <p class="error" id="table-error" role="alert"></p>
+    </section>
+
+    <div class="ad-slot footer" aria-label="Advertisement">Ad placement</div>
+  </div>
+
+  <script>
+    const state = {
+      roomToken: null,
+      password: null,
+      game: null,
+      pollTimer: null,
+      busy: false,
+      prevRound: null,
+      statusCallout: null,
+      calloutTimer: null,
+      editingRules: false,
+    };
+
+    const els = {
+      lobby: document.getElementById("lobby"),
+      intake: document.getElementById("intake"),
+      table: document.getElementById("table"),
+      players: document.getElementById("players"),
+      createForm: document.getElementById("create-form"),
+      joinForm: document.getElementById("join-form"),
+      joinPanel: document.getElementById("join-panel"),
+      showJoin: document.getElementById("show-join"),
+      closeJoin: document.getElementById("close-join"),
+      addPlayer: document.getElementById("add-player"),
+      createBtn: document.getElementById("create-btn"),
+      joinBtn: document.getElementById("join-btn"),
+      joinPassword: document.getElementById("join-password"),
+      customGameName: document.getElementById("custom-game-name"),
+      roomPassword: document.getElementById("room-password"),
+      refreshPassword: document.getElementById("refresh-password"),
+      lobbyError: document.getElementById("lobby-error"),
+      intakeForm: document.getElementById("intake-form"),
+      intakeGameName: document.getElementById("intake-game-name"),
+      intakeBtn: document.getElementById("intake-btn"),
+      intakeBackBtn: document.getElementById("intake-back-btn"),
+      intakeError: document.getElementById("intake-error"),
+      editRulesBtn: document.getElementById("edit-rules-btn"),
+      gameDescription: document.getElementById("game-description"),
+      optionalNotes: document.getElementById("optional-notes"),
+      notesCount: document.getElementById("notes-count"),
+      startingScoreField: document.getElementById("starting-score-field"),
+      startingScore: document.getElementById("starting-score"),
+      targetField: document.getElementById("target-field"),
+      targetRoundsField: document.getElementById("target-rounds-field"),
+      targetRoundsCount: document.getElementById("target-rounds-count"),
+      targetScore: document.getElementById("target-score"),
+      keepIncrementalOption: document.getElementById("keep-incremental-option"),
+      keepScoreLockHint: document.getElementById("keep-score-lock-hint"),
+      tableError: document.getElementById("table-error"),
+      board: document.getElementById("board"),
+      tableMeta: document.getElementById("table-meta"),
+      tableStatus: document.getElementById("table-status"),
+      tableActions: document.getElementById("table-actions"),
+      addPlayerForm: document.getElementById("add-player-form"),
+      addPlayerName: document.getElementById("add-player-name"),
+      tablePassword: document.getElementById("table-password"),
+      tableGame: document.getElementById("table-game"),
+      leaveBtn: document.getElementById("leave-btn"),
+    };
+
+    const labelize = (metric) => metric.replaceAll("_", " ");
+
+    const WIN_LABELS = { high_score: "High Score", low_score: "Low Score" };
+    const END_LABELS = {
+      manually: "End manually",
+      target_score: "Target score",
+    };
+    const KEEP_LABELS = {
+      in_rounds: "In rounds",
+      incrementally: "Incrementally",
+    };
+    const SORT_LABELS = {
+      manually: "Manual order",
+      by_score: "By score",
+    };
+    function setStatusCallout(message) {
+      state.statusCallout = message;
+      if (state.calloutTimer) clearTimeout(state.calloutTimer);
+      if (!message) return;
+      state.calloutTimer = setTimeout(() => {
+        state.statusCallout = null;
+        if (state.game && state.game.status !== "ended") renderStatus(state.game);
+      }, 7000);
+    }
+
+    function setError(target, message) {
+      target.textContent = message || "";
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replaceAll("'", "&#39;");
+    }
+
+    function addPlayerRow(name = "") {
+      const row = document.createElement("div");
+      row.className = "player-row";
+      row.innerHTML = `
+        <input type="text" name="player" placeholder="Player name" value="${escapeAttr(name)}" required maxlength="24" />
+        <button type="button" class="ghost-btn" aria-label="Remove player">×</button>
+      `;
+      row.querySelector("button").addEventListener("click", () => {
+        if (els.players.children.length <= 1) return;
+        row.remove();
+      });
+      els.players.appendChild(row);
+    }
+
+    function playerNamesFromForm() {
+      return [...els.players.querySelectorAll('input[name="player"]')]
+        .map((input) => input.value.trim())
+        .filter(Boolean);
+    }
+
+    function radioValue(name) {
+      const selected = document.querySelector(`input[name="${name}"]:checked`);
+      return selected ? selected.value : null;
+    }
+
+    function stopPolling() {
+      if (state.pollTimer) {
+        clearInterval(state.pollTimer);
+        state.pollTimer = null;
+      }
+    }
+
+    function startPolling() {
+      stopPolling();
+      state.pollTimer = setInterval(() => {
+        if (!state.busy) refreshGame();
+      }, 2000);
+    }
+
+    function showOnly(screen) {
+      els.lobby.hidden = screen !== "lobby";
+      els.intake.hidden = screen !== "intake";
+      els.table.hidden = screen !== "table";
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        ...options,
+      });
+      let body = null;
+      try { body = await res.json(); } catch { /* empty */ }
+      if (!res.ok) {
+        const detail = body?.detail || `Request failed (${res.status})`;
+        throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      }
+      return body;
+    }
+
+    async function loadPassword() {
+      try {
+        const data = await api("/room/password");
+        state.password = data.password;
+        els.roomPassword.textContent = data.password;
+      } catch (err) {
+        els.roomPassword.textContent = "----";
+        setError(els.lobbyError, err.message);
+      }
+    }
+
+    function showLobby() {
+      stopPolling();
+      state.roomToken = null;
+      state.game = null;
+      state.prevRound = null;
+      setStatusCallout(null);
+      state.editingRules = false;
+      showOnly("lobby");
+      els.joinPanel.hidden = true;
+      setError(els.lobbyError, "");
+      setError(els.tableError, "");
+      setError(els.intakeError, "");
+      loadPassword();
+    }
+
+    function setRadio(name, value) {
+      const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
+      if (input) input.checked = true;
+    }
+
+    function fillIntakeForm(config) {
+      if (!config) return;
+      els.gameDescription.value = config.game_description || "";
+      els.optionalNotes.value = config.optional_notes || "";
+      els.notesCount.textContent = String(els.optionalNotes.value.length);
+
+      setRadio("how_to_win", config.how_to_win || "high_score");
+      setRadio("how_to_end", config.how_to_end || "manually");
+      setRadio("how_to_keep_score", config.how_to_keep_score || "incrementally");
+      setRadio("how_to_sort_players", config.how_to_sort_players || "by_score");
+      setRadio("how_to_display_scores", config.how_to_display_scores || "total_scores");
+
+      if (config.how_to_end === "target_score" && config.target_score_action) {
+        setRadio("target_score_action", config.target_score_action);
+      }
+      els.targetScore.value = config.target_score != null ? String(config.target_score) : "";
+      els.targetRoundsCount.value = config.rounds_count != null ? String(config.rounds_count) : "";
+      els.startingScore.value = config.starting_score != null ? String(config.starting_score) : "";
+
+      syncWinFields();
+      syncEndFields();
+    }
+
+    function showIntake(game, { editing = false } = {}) {
+      stopPolling();
+      state.editingRules = editing;
+      showOnly("intake");
+      els.intakeGameName.textContent = game.game_name;
+      els.intakeBackBtn.hidden = !editing;
+      els.intakeBtn.textContent = editing ? "Save rules" : "Start scoring";
+      els.intakeSub = document.querySelector("#intake .intake-sub");
+      if (els.intakeSub) {
+        els.intakeSub.textContent = editing
+          ? "Update the rules for this table. Saving restarts scoring with the same players."
+          : "Tell the table how this game should score and end.";
+      }
+      setError(els.intakeError, "");
+      if (editing && game.custom_config) {
+        fillIntakeForm(game.custom_config);
+      }
+    }
+
+    function showTable(game) {
+      state.roomToken = game.room_token;
+      state.password = game.password;
+      state.game = game;
+      state.editingRules = false;
+      state.prevRound = game.current_round || 1;
+      showOnly("table");
+      els.tablePassword.textContent = `Password: ${game.password}`;
+      els.tableGame.textContent = game.game_name;
+      renderTable();
+      startPolling();
+    }
+
+    function enterRoom(game, { isCreator = false } = {}) {
+      state.roomToken = game.room_token;
+      state.password = game.password;
+      state.game = game;
+      if (game.game_type === "custom" && !game.setup_complete) {
+        if (isCreator) {
+          showIntake(game, { editing: false });
+        } else {
+          showOnly("table");
+          els.tablePassword.textContent = `Password: ${game.password}`;
+          els.tableGame.textContent = game.game_name;
+          els.tableMeta.innerHTML = "";
+          els.tableActions.innerHTML = "";
+          els.tableStatus.hidden = true;
+          els.addPlayerForm.hidden = true;
+          els.board.innerHTML = `<p class="hint">Host is finishing setup for this custom game…</p>`;
+          startPolling();
+        }
+        return;
+      }
+      showTable(game);
+    }
+
+    function rankedPlayers(game) {
+      const config = game.custom_config || {};
+      const sortMode = config.how_to_sort_players || "by_score";
+      const order = game.player_order || Object.keys(game.players);
+      const entries = order
+        .filter((name) => game.players[name])
+        .map((name) => ({ name, ...game.players[name] }));
+
+      for (const name of Object.keys(game.players)) {
+        if (!entries.some((entry) => entry.name === name)) {
+          entries.push({ name, ...game.players[name] });
+        }
+      }
+
+      if (sortMode === "manually") return entries;
+
+      const lowWins = config.how_to_win === "low_score";
+      const keep = config.how_to_keep_score || "incrementally";
+      return entries.sort((a, b) => {
+        if (keep === "in_rounds" && (a.round_wins || 0) !== (b.round_wins || 0)) {
+          return (b.round_wins || 0) - (a.round_wins || 0);
+        }
+        const aScore = keep === "in_rounds" ? (a.cumulative_score ?? 0) : a.live_total_score;
+        const bScore = keep === "in_rounds" ? (b.cumulative_score ?? 0) : b.live_total_score;
+        return lowWins ? aScore - bScore : bScore - aScore;
+      });
+    }
+
+    function configChips(game) {
+      const config = game.custom_config || {};
+      const chips = [];
+      chips.push({ label: "Win", value: WIN_LABELS[config.how_to_win] || "High Score" });
+      if (config.how_to_win === "low_score") {
+        chips.push({
+          label: "Start",
+          value: config.starting_score != null ? String(config.starting_score) : "",
+          editable: "starting_score",
+        });
+      }
+
+      if (config.how_to_end === "target_score") {
+        const action =
+          config.target_score_action === "complete_round" ? "completes round" : "ends game";
+        chips.push({ label: "End", value: `Target ${config.target_score} · ${action}` });
+      } else {
+        chips.push({ label: "End", value: END_LABELS.manually });
+      }
+
+      chips.push({ label: "Score", value: KEEP_LABELS[config.how_to_keep_score] || "Incrementally" });
+      chips.push({ label: "Sort", value: SORT_LABELS[config.how_to_sort_players] || "By score" });
+
+      if (config.how_to_keep_score === "in_rounds" || game.total_rounds) {
+        const total = game.total_rounds ? ` / ${game.total_rounds}` : "";
+        chips.push({ label: "Round", value: `${game.current_round || 1}${total}` });
+      }
+      return chips;
+    }
+
+    function renderMeta(game) {
+      const ended = game.status === "ended";
+      const active = document.activeElement;
+      const editingStart = active && active.classList.contains("meta-edit-input") && els.tableMeta.contains(active);
+
+      // Don't wipe the Start field while it's being edited.
+      if (editingStart) return;
+
+      els.tableMeta.innerHTML = configChips(game).map((chip) => {
+        if (chip.editable === "starting_score" && !ended) {
+          return `
+            <div class="meta-chip meta-chip-edit">
+              <span>${escapeHtml(chip.label)}</span>
+              <input
+                type="number"
+                step="1"
+                class="meta-edit-input"
+                data-edit="starting_score"
+                value="${escapeAttr(chip.value)}"
+                placeholder="—"
+                aria-label="Starting score"
+              />
+            </div>
+          `;
+        }
+        return `<div class="meta-chip"><span>${escapeHtml(chip.label)}</span>${escapeHtml(chip.value)}</div>`;
+      }).join("");
+    }
+
+    function renderStatus(game) {
+      if (game.status === "ended") {
+        const reason = {
+          manual: "Ended manually",
+          rounds: "All rounds complete",
+          target_score: "Target score reached",
+        }[game.ended_reason] || "Game ended";
+        els.tableStatus.hidden = false;
+        els.tableStatus.className = "status-banner callout";
+        els.tableStatus.textContent = reason;
+        return;
+      }
+
+      if (state.statusCallout) {
+        els.tableStatus.hidden = false;
+        els.tableStatus.className = "status-banner callout";
+        els.tableStatus.textContent = state.statusCallout;
+        return;
+      }
+
+      const config = game.custom_config || {};
+      els.tableStatus.className = "status-banner";
+      if (config.how_to_keep_score === "in_rounds") {
+        els.tableStatus.hidden = false;
+        els.tableStatus.textContent = `Round ${game.current_round}${game.total_rounds ? ` of ${game.total_rounds}` : ""} · enter scores, then complete the round`;
+        return;
+      }
+
+      if (config.how_to_end === "target_score") {
+        els.tableStatus.hidden = false;
+        if (config.target_score_action === "complete_round") {
+          els.tableStatus.textContent = `Hit ${config.target_score} to complete the round (${WIN_LABELS[config.how_to_win] || "High Score"}) · Round ${game.current_round}${game.total_rounds ? ` of ${game.total_rounds}` : ""}`;
+        } else {
+          els.tableStatus.textContent = `First to ${config.target_score} (${WIN_LABELS[config.how_to_win] || "High Score"}) ends the game`;
+        }
+        return;
+      }
+
+      els.tableStatus.hidden = true;
+      els.tableStatus.textContent = "";
+    }
+
+    function renderActions(game) {
+      const config = game.custom_config || {};
+      const ended = game.status === "ended";
+      const buttons = [];
+
+      if (ended) {
+        buttons.push(`<button type="button" class="primary-btn" id="play-again-btn">Play again</button>`);
+      }
+      if (!ended && config.how_to_keep_score === "in_rounds") {
+        buttons.push(`<button type="button" class="primary-btn" id="complete-round-btn">Complete round</button>`);
+      }
+      if (!ended && config.how_to_end === "manually") {
+        buttons.push(`<button type="button" class="ghost-btn" id="end-game-btn" style="width:100%;padding:0.85rem;">End game</button>`);
+      } else if (!ended && config.how_to_keep_score === "in_rounds") {
+        buttons.push(`<button type="button" class="ghost-btn" id="end-game-btn" style="width:100%;padding:0.85rem;">End game early</button>`);
+      }
+
+      els.tableActions.innerHTML = buttons.join("");
+    }
+
+    function renderBoard() {
+      const game = state.game;
+      if (!game) return;
+
+      const active = document.activeElement;
+      if (active && active.classList.contains("metric-value") && els.board.contains(active)) {
+        return;
+      }
+
+      const config = game.custom_config || {};
+      const manualSort = config.how_to_sort_players === "manually" && game.status !== "ended";
+      const keep = config.how_to_keep_score || "incrementally";
+      const ended = game.status === "ended";
+      const players = rankedPlayers(game);
+
+      const winners = new Set(game.winners || (game.winner ? [game.winner] : []));
+      const winnerNote = game.winner_note || "";
+
+      els.board.innerHTML = players.map((player, index) => {
+        const wins = player.round_wins || 0;
+        const total = player.cumulative_score || 0;
+        const isWinner = ended && winners.has(player.name);
+        const statsPill = keep === "in_rounds" ? `
+          <div class="player-stats-pill">
+            <span>${wins} round win${wins === 1 ? "" : "s"}</span>
+            <span>Total ${total}</span>
+          </div>
+        ` : "";
+        const scoreLabel = keep === "in_rounds" ? "This round" : "Score";
+        const winBanner = isWinner && winnerNote
+          ? `<div class="winner-banner">${escapeHtml(winnerNote)}</div>`
+          : (isWinner ? `<div class="winner-banner">${escapeHtml(player.name)} wins!</div>` : "");
+
+        return `
+          <article class="player-panel ${isWinner ? "winner" : ""}" data-player="${escapeAttr(player.name)}">
+            ${winBanner}
+            <div class="player-head ${manualSort ? "" : "no-sort"}">
+              ${manualSort ? `
+                <div class="sort-controls">
+                  <button type="button" class="sort-btn" data-move="-1" aria-label="Move ${escapeAttr(player.name)} up" ${index === 0 ? "disabled" : ""}>↑</button>
+                  <button type="button" class="sort-btn" data-move="1" aria-label="Move ${escapeAttr(player.name)} down" ${index === players.length - 1 ? "disabled" : ""}>↓</button>
+                </div>
+              ` : ""}
+              <div class="player-identity">
+                <h2 class="player-name">${escapeHtml(player.name)}</h2>
+                ${statsPill}
+              </div>
+              <div style="text-align:right;">
+                <p class="live-total" data-total>${player.live_total_score || 0}</p>
+                <p class="player-sub">${escapeHtml(scoreLabel)}</p>
+              </div>
+            </div>
+            <div class="metrics">
+              ${Object.entries(player.raw_metrics).map(([metric, value]) => `
+                <div class="metric" data-metric="${escapeAttr(metric)}">
+                  <span class="metric-label">${escapeHtml(labelize(metric))}</span>
+                  <div class="metric-controls">
+                    <button type="button" class="metric-btn" data-delta="-1" aria-label="Decrease ${escapeAttr(labelize(metric))}" ${ended ? "disabled" : ""}>−</button>
+                    <input
+                      class="metric-value"
+                      type="number"
+                      inputmode="numeric"
+                      step="1"
+                      value="${value}"
+                      aria-label="${escapeAttr(labelize(metric))} score"
+                      ${ended ? "disabled" : ""}
+                    />
+                    <button type="button" class="metric-btn" data-delta="1" aria-label="Increase ${escapeAttr(labelize(metric))}" ${ended ? "disabled" : ""}>+</button>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderTable() {
+      const game = state.game;
+      if (!game || !game.setup_complete) return;
+      renderMeta(game);
+      renderStatus(game);
+      renderActions(game);
+      renderBoard();
+      els.addPlayerForm.hidden = game.status === "ended";
+    }
+
+    function syncWinFields() {
+      const lowScore = radioValue("how_to_win") === "low_score";
+      els.startingScoreField.hidden = !lowScore;
+      els.startingScore.required = false;
+      if (!lowScore) els.startingScore.value = "";
+    }
+
+    function syncEndFields() {
+      const endMode = radioValue("how_to_end");
+      const targetAction = radioValue("target_score_action");
+      const showTarget = endMode === "target_score";
+      const showTargetRounds = showTarget && targetAction === "complete_round";
+      const lockInRounds = showTargetRounds;
+
+      els.targetField.hidden = !showTarget;
+      els.targetRoundsField.hidden = !showTargetRounds;
+
+      els.targetScore.required = showTarget;
+      els.targetRoundsCount.required = showTargetRounds;
+
+      if (!showTarget) {
+        document.querySelectorAll('input[name="target_score_action"]').forEach((input) => {
+          input.checked = false;
+          input.required = false;
+        });
+      } else {
+        document.querySelectorAll('input[name="target_score_action"]').forEach((input) => {
+          input.required = true;
+        });
+      }
+
+      if (!showTargetRounds) els.targetRoundsCount.value = "";
+
+      // Completes round only makes sense with discrete rounds.
+      const inRoundsInput = document.querySelector('input[name="how_to_keep_score"][value="in_rounds"]');
+      const incrementalInput = document.querySelector('input[name="how_to_keep_score"][value="incrementally"]');
+      if (lockInRounds) {
+        if (inRoundsInput) inRoundsInput.checked = true;
+        if (incrementalInput) incrementalInput.disabled = true;
+        els.keepIncrementalOption.style.opacity = "0.45";
+        els.keepIncrementalOption.style.pointerEvents = "none";
+        els.keepScoreLockHint.hidden = false;
+      } else {
+        if (incrementalInput) incrementalInput.disabled = false;
+        els.keepIncrementalOption.style.opacity = "";
+        els.keepIncrementalOption.style.pointerEvents = "";
+        els.keepScoreLockHint.hidden = true;
+      }
+    }
+
+    async function createGame(event) {
+      event.preventDefault();
+      setError(els.lobbyError, "");
+
+      const game_name = els.customGameName.value.trim();
+      const player_names = playerNamesFromForm();
+
+      if (!game_name) {
+        setError(els.lobbyError, "Enter a game name.");
+        return;
+      }
+      if (!player_names.length) {
+        setError(els.lobbyError, "Add at least one player.");
+        return;
+      }
+      if (!state.password) {
+        setError(els.lobbyError, "Room password is still loading. Try again.");
+        return;
+      }
+
+      els.createBtn.disabled = true;
+      try {
+        const data = await api("/game/start", {
+          method: "POST",
+          body: JSON.stringify({
+            game_type: "custom",
+            game_name,
+            player_names,
+            password: state.password,
+          }),
+        });
+        enterRoom(data.state, { isCreator: true });
+      } catch (err) {
+        setError(els.lobbyError, err.message);
+        await loadPassword();
+      } finally {
+        els.createBtn.disabled = false;
+      }
+    }
+
+    async function joinGame(event) {
+      event.preventDefault();
+      setError(els.lobbyError, "");
+      const password = els.joinPassword.value.trim().toUpperCase();
+      if (password.length !== 4) {
+        setError(els.lobbyError, "Enter the 4-letter room password.");
+        return;
+      }
+
+      els.joinBtn.disabled = true;
+      try {
+        const game = await api(`/game/join/${encodeURIComponent(password)}`);
+        enterRoom(game);
+      } catch (err) {
+        setError(els.lobbyError, err.message);
+      } finally {
+        els.joinBtn.disabled = false;
+      }
+    }
+
+    async function saveIntake(event) {
+      event.preventDefault();
+      setError(els.intakeError, "");
+
+      const how_to_end = radioValue("how_to_end");
+      const how_to_win = radioValue("how_to_win");
+      const target_score_action = how_to_end === "target_score" ? radioValue("target_score_action") : null;
+      const payload = {
+        game_description: els.gameDescription.value.trim() || null,
+        optional_notes: els.optionalNotes.value.trim() || null,
+        how_to_win,
+        how_to_end,
+        how_to_keep_score:
+          how_to_end === "target_score" && target_score_action === "complete_round"
+            ? "in_rounds"
+            : radioValue("how_to_keep_score"),
+        how_to_sort_players: radioValue("how_to_sort_players"),
+        how_to_display_scores: radioValue("how_to_display_scores"),
+        rounds_count:
+          how_to_end === "target_score" && target_score_action === "complete_round"
+            ? Number(els.targetRoundsCount.value)
+            : null,
+        target_score: how_to_end === "target_score" ? Number(els.targetScore.value) : null,
+        target_score_action,
+        starting_score:
+          how_to_win === "low_score" && els.startingScore.value !== ""
+            ? Number(els.startingScore.value)
+            : null,
+      };
+
+      if (
+        how_to_win === "low_score"
+        && els.startingScore.value !== ""
+        && !Number.isFinite(payload.starting_score)
+      ) {
+        setError(els.intakeError, "Starting score must be a number.");
+        return;
+      }
+      if (how_to_end === "target_score" && !target_score_action) {
+        setError(els.intakeError, "Choose whether the target score completes a round or ends the game.");
+        return;
+      }
+      if (how_to_end === "target_score" && target_score_action === "complete_round" && !payload.rounds_count) {
+        setError(els.intakeError, "Enter # of rounds completed.");
+        return;
+      }
+      if (how_to_end === "target_score" && (els.targetScore.value === "" || !Number.isFinite(payload.target_score))) {
+        setError(els.intakeError, "Enter a target score (0 and negatives are allowed).");
+        return;
+      }
+
+      if (payload.optional_notes && payload.optional_notes.length > 300) {
+        setError(els.intakeError, "Optional notes must be 300 characters or fewer.");
+        return;
+      }
+
+      els.intakeBtn.disabled = true;
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/setup`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        showTable(data.state);
+        state.editingRules = false;
+      } catch (err) {
+        setError(els.intakeError, err.message);
+      } finally {
+        els.intakeBtn.disabled = false;
+      }
+    }
+
+    async function playAgain() {
+      if (state.busy || !state.roomToken) return;
+      state.busy = true;
+      setError(els.tableError, "");
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/play-again`, {
+          method: "POST",
+          body: "{}",
+        });
+        setStatusCallout(null);
+        state.prevRound = 1;
+        showTable(data.state);
+      } catch (err) {
+        setError(els.tableError, err.message);
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    function openEditRules() {
+      if (!state.game || !state.game.setup_complete) return;
+      showIntake(state.game, { editing: true });
+    }
+
+    async function setMetric(playerName, metricName, value) {
+      if (state.busy || !state.roomToken || !state.game) return;
+      if (state.game.status === "ended") return;
+      const player = state.game.players[playerName];
+      if (!player) return;
+
+      const next = Number(value);
+      if (!Number.isFinite(next) || !Number.isInteger(next)) {
+        renderTable();
+        return;
+      }
+      if (next === player.raw_metrics[metricName]) return;
+
+      state.busy = true;
+      setError(els.tableError, "");
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/update`, {
+          method: "POST",
+          body: JSON.stringify({
+            player_name: playerName,
+            metric_name: metricName,
+            value: next,
+          }),
+        });
+        state.game = data.state || state.game;
+        renderTable();
+        const totalEl = els.board.querySelector(`[data-player="${CSS.escape(playerName)}"] [data-total]`);
+        if (totalEl) {
+          totalEl.classList.remove("score-flash");
+          void totalEl.offsetWidth;
+          totalEl.classList.add("score-flash");
+        }
+      } catch (err) {
+        setError(els.tableError, err.message);
+        renderTable();
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    async function bumpMetric(playerName, metricName, delta) {
+      if (!state.game) return;
+      const player = state.game.players[playerName];
+      if (!player) return;
+      const next = (player.raw_metrics[metricName] ?? 0) + delta;
+      await setMetric(playerName, metricName, next);
+    }
+
+    function commitMetricInput(input) {
+      const panel = input.closest("[data-player]");
+      const metric = input.closest("[data-metric]");
+      if (!panel || !metric) return;
+      setMetric(panel.dataset.player, metric.dataset.metric, input.value);
+    }
+
+    async function completeRound() {
+      if (state.busy || !state.roomToken) return;
+      const finished = state.game?.current_round || 1;
+      state.busy = true;
+      setError(els.tableError, "");
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/complete-round`, {
+          method: "POST",
+          body: "{}",
+        });
+        state.game = data.state;
+        state.prevRound = data.state.current_round || finished;
+        if (data.state.status === "ended") {
+          setStatusCallout(null);
+        } else {
+          setStatusCallout(`Round ${finished} complete · Now round ${data.state.current_round}`);
+        }
+        renderTable();
+      } catch (err) {
+        setError(els.tableError, err.message);
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    async function endGame() {
+      if (state.busy || !state.roomToken) return;
+      state.busy = true;
+      setError(els.tableError, "");
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/end`, {
+          method: "POST",
+          body: "{}",
+        });
+        state.game = data.state;
+        setStatusCallout(null);
+        renderTable();
+      } catch (err) {
+        setError(els.tableError, err.message);
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    async function movePlayer(playerName, delta) {
+      if (state.busy || !state.game) return;
+      const order = [...(state.game.player_order || Object.keys(state.game.players))];
+      const index = order.indexOf(playerName);
+      if (index < 0) return;
+      const next = index + delta;
+      if (next < 0 || next >= order.length) return;
+      [order[index], order[next]] = [order[next], order[index]];
+
+      state.busy = true;
+      setError(els.tableError, "");
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/reorder`, {
+          method: "POST",
+          body: JSON.stringify({ player_order: order }),
+        });
+        state.game = data.state;
+        renderTable();
+      } catch (err) {
+        setError(els.tableError, err.message);
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    async function refreshGame() {
+      if (!state.roomToken) return;
+      try {
+        const game = await api(`/game/${encodeURIComponent(state.roomToken)}`);
+        const previousRound = state.prevRound;
+        state.game = game;
+        if (game.game_type === "custom" && !game.setup_complete) {
+          if (!els.intake.hidden) return;
+          els.tableMeta.innerHTML = "";
+          els.tableActions.innerHTML = "";
+          els.tableStatus.hidden = true;
+          els.addPlayerForm.hidden = true;
+          els.board.innerHTML = `<p class="hint">Host is finishing setup for this custom game…</p>`;
+          return;
+        }
+        if (!els.table.hidden) {
+          if (
+            previousRound != null
+            && game.current_round > previousRound
+            && game.status !== "ended"
+          ) {
+            setStatusCallout(`Round ${previousRound} complete · Now round ${game.current_round}`);
+          }
+          if (game.status === "ended") {
+            setStatusCallout(null);
+          }
+          state.prevRound = game.current_round || previousRound;
+          els.tablePassword.textContent = `Password: ${game.password}`;
+          els.tableGame.textContent = game.game_name;
+          renderTable();
+        }
+      } catch {
+        /* keep last known state while polling */
+      }
+    }
+
+    async function addPlayerToTable(event) {
+      event.preventDefault();
+      if (state.busy || !state.roomToken || !state.game || state.game.status === "ended") return;
+
+      const player_name = els.addPlayerName.value.trim();
+      if (!player_name) {
+        setError(els.tableError, "Enter a player name.");
+        return;
+      }
+
+      state.busy = true;
+      setError(els.tableError, "");
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/players`, {
+          method: "POST",
+          body: JSON.stringify({ player_name }),
+        });
+        state.game = data.state;
+        els.addPlayerName.value = "";
+        renderTable();
+      } catch (err) {
+        setError(els.tableError, err.message);
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    async function applyStartingScore(rawValue) {
+      if (state.busy || !state.roomToken || !state.game || state.game.status === "ended") return;
+      if (rawValue === "" || !Number.isFinite(Number(rawValue)) || !Number.isInteger(Number(rawValue))) {
+        setError(els.tableError, "Enter a starting score.");
+        renderMeta(state.game);
+        return;
+      }
+
+      const next = Number(rawValue);
+      if (next === state.game.custom_config?.starting_score) return;
+
+      state.busy = true;
+      setError(els.tableError, "");
+      try {
+        const data = await api(`/game/${encodeURIComponent(state.roomToken)}/starting-score`, {
+          method: "POST",
+          body: JSON.stringify({ starting_score: next }),
+        });
+        state.game = data.state;
+        renderTable();
+      } catch (err) {
+        setError(els.tableError, err.message);
+        renderMeta(state.game);
+      } finally {
+        state.busy = false;
+      }
+    }
+
+    els.board.addEventListener("click", (event) => {
+      const sortBtn = event.target.closest(".sort-btn");
+      if (sortBtn) {
+        const panel = sortBtn.closest("[data-player]");
+        if (!panel) return;
+        movePlayer(panel.dataset.player, Number(sortBtn.dataset.move));
+        return;
+      }
+
+      const btn = event.target.closest(".metric-btn");
+      if (!btn) return;
+      const panel = btn.closest("[data-player]");
+      const metric = btn.closest("[data-metric]");
+      if (!panel || !metric) return;
+      bumpMetric(panel.dataset.player, metric.dataset.metric, Number(btn.dataset.delta));
+    });
+
+    els.tableActions.addEventListener("click", (event) => {
+      if (event.target.id === "complete-round-btn") completeRound();
+      if (event.target.id === "end-game-btn") endGame();
+      if (event.target.id === "play-again-btn") playAgain();
+    });
+
+    els.editRulesBtn.addEventListener("click", openEditRules);
+    els.intakeBackBtn.addEventListener("click", () => {
+      if (state.game) showTable(state.game);
+    });
+
+    els.addPlayerForm.addEventListener("submit", addPlayerToTable);
+
+    els.tableMeta.addEventListener("change", (event) => {
+      if (!event.target.classList.contains("meta-edit-input")) return;
+      if (event.target.dataset.edit === "starting_score") {
+        applyStartingScore(event.target.value);
+      }
+    });
+
+    els.tableMeta.addEventListener("keydown", (event) => {
+      if (!event.target.classList.contains("meta-edit-input")) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.target.blur();
+      }
+    });
+
+    els.board.addEventListener("change", (event) => {
+      if (!event.target.classList.contains("metric-value")) return;
+      commitMetricInput(event.target);
+    });
+
+    els.board.addEventListener("keydown", (event) => {
+      if (!event.target.classList.contains("metric-value")) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.target.blur();
+      }
+    });
+
+    els.addPlayer.addEventListener("click", () => addPlayerRow());
+    els.createForm.addEventListener("submit", createGame);
+    els.joinForm.addEventListener("submit", joinGame);
+    els.intakeForm.addEventListener("submit", saveIntake);
+    els.leaveBtn.addEventListener("click", showLobby);
+    els.refreshPassword.addEventListener("click", loadPassword);
+    els.showJoin.addEventListener("click", () => {
+      els.joinPanel.hidden = !els.joinPanel.hidden;
+      if (!els.joinPanel.hidden) els.joinPassword.focus();
+    });
+    els.closeJoin.addEventListener("click", () => {
+      els.joinPanel.hidden = true;
+      els.joinPassword.value = "";
+      setError(els.lobbyError, "");
+    });
+    els.joinPassword.addEventListener("input", () => {
+      els.joinPassword.value = els.joinPassword.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+    });
+    els.optionalNotes.addEventListener("input", () => {
+      els.notesCount.textContent = String(els.optionalNotes.value.length);
+    });
+    document.querySelectorAll('input[name="how_to_win"]').forEach((input) => {
+      input.addEventListener("change", syncWinFields);
+    });
+    document.querySelectorAll('input[name="how_to_end"]').forEach((input) => {
+      input.addEventListener("change", syncEndFields);
+    });
+    document.querySelectorAll('input[name="target_score_action"]').forEach((input) => {
+      input.addEventListener("change", syncEndFields);
+    });
+
+    addPlayerRow("You");
+    addPlayerRow("Friend");
+    syncWinFields();
+    syncEndFields();
+    loadPassword();
+
+    const hashPassword = location.hash.replace(/^#/, "").trim().toUpperCase();
+    if (hashPassword.length === 4) {
+      els.showJoin.click();
+      els.joinPassword.value = hashPassword;
+      joinGame(new Event("submit"));
+    }
+  </script>
+</body>
+</html>
