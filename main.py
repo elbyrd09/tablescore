@@ -6,18 +6,36 @@ from typing import Literal, Optional
 import random
 import uuid
 
+from db import (
+    expire_old_rooms,
+    fetch_room,
+    fetch_room_by_password,
+    get_session,
+    init_db,
+    insert_room,
+    password_taken,
+    room_transaction,
+    used_passwords,
+)
+from sqlalchemy.exc import IntegrityError
+
 app = FastAPI(title="Board Game Live Scorer - Prototype")
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+    session = get_session()
+    try:
+        expire_old_rooms(session)
+        session.commit()
+    finally:
+        session.close()
 
 
 @app.get("/")
 def index():
     return FileResponse(Path(__file__).parent / "index.html")
-
-
-# In-memory stores (swap for PostgreSQL in production).
-# Rooms are keyed by a unique token; shareable access uses a 4-letter password.
-GAMES_DB: dict[str, dict] = {}
-PASSWORD_INDEX: dict[str, str] = {}  # password -> room_token
 
 # Easy, clean 4-letter English words for room passwords (no profanity).
 ROOM_WORDS = [
@@ -162,26 +180,37 @@ def _normalize_password(password: str) -> str:
     return password.strip().upper()
 
 
-def _allocate_password(preferred: Optional[str] = None) -> str:
-    """Pick an unused 4-letter room password."""
+def _allocate_password(session, preferred: Optional[str] = None) -> str:
+    """Pick an unused 4-letter room password (after optional TTL cleanup)."""
+    expire_old_rooms(session)
+
     if preferred:
         candidate = _normalize_password(preferred)
         if len(candidate) != 4 or not candidate.isalpha():
             raise HTTPException(status_code=400, detail="Password must be a 4-letter word.")
         if candidate not in ROOM_WORDS:
             raise HTTPException(status_code=400, detail="Password is not an allowed room word.")
-        if candidate in PASSWORD_INDEX:
-            raise HTTPException(status_code=409, detail="That room password is already in use. Refresh for a new one.")
+        if password_taken(session, candidate):
+            raise HTTPException(
+                status_code=409,
+                detail="That room password is already in use. Refresh for a new one.",
+            )
         return candidate
 
-    available = [w for w in ROOM_WORDS if w not in PASSWORD_INDEX]
+    taken = used_passwords(session)
+    available = [w for w in ROOM_WORDS if w not in taken]
     if not available:
         raise HTTPException(status_code=503, detail="No room passwords available. Try again later.")
     return random.choice(available)
 
 
-def _get_room(room_token: str) -> dict:
-    room = GAMES_DB.get(room_token)
+def _require_room(room_token: str) -> dict:
+    """Read-only load (no row lock). Prefer room_transaction for writes."""
+    session = get_session()
+    try:
+        room = fetch_room(session, room_token)
+    finally:
+        session.close()
     if not room:
         raise HTTPException(status_code=404, detail="Game session not found.")
     return room
@@ -412,7 +441,13 @@ def _public_state(room: dict) -> dict:
 @app.get("/room/password")
 def suggest_password():
     """Return a fresh unused 4-letter room password for the create form."""
-    return {"password": _allocate_password()}
+    session = get_session()
+    try:
+        password = _allocate_password(session)
+        session.commit()
+        return {"password": password}
+    finally:
+        session.close()
 
 
 @app.post("/game/start")
@@ -427,49 +462,65 @@ def start_game(request: CreateGameRequest):
     if request.game_type == "preset":
         raise HTTPException(status_code=400, detail="Preset games are not available. Create a custom game.")
 
-    password = _allocate_password(request.password)
-    room_token = uuid.uuid4().hex
+    session = get_session()
+    try:
+        password = _allocate_password(session, request.password)
+        room_token = uuid.uuid4().hex
 
-    metrics_template = GameScoringEngine.default_metrics(game_name, request.game_type)
-    initial_players = {}
-    player_order = []
-    for name in request.player_names:
-        cleaned = name.strip()
-        if not cleaned:
-            continue
-        if cleaned in initial_players:
-            continue
-        player_order.append(cleaned)
-        initial_players[cleaned] = {
-            "raw_metrics": dict(metrics_template),
-            "live_total_score": 0,
-            "cumulative_score": 0,
-            "round_wins": 0,
+        metrics_template = GameScoringEngine.default_metrics(game_name, request.game_type)
+        initial_players = {}
+        player_order = []
+        for name in request.player_names:
+            cleaned = name.strip()
+            if not cleaned:
+                continue
+            if cleaned in initial_players:
+                continue
+            player_order.append(cleaned)
+            initial_players[cleaned] = {
+                "raw_metrics": dict(metrics_template),
+                "live_total_score": 0,
+                "cumulative_score": 0,
+                "round_wins": 0,
+            }
+
+        if not initial_players:
+            raise HTTPException(status_code=400, detail="At least one player is required.")
+
+        room = {
+            "room_token": room_token,
+            "password": password,
+            "game_type": request.game_type,
+            "game_name": game_name,
+            "setup_complete": request.game_type != "custom",
+            "custom_config": None,
+            "players": initial_players,
+            "player_order": player_order,
+            "status": "active",
+            "current_round": 1,
+            "round_history": [],
+            "winner": None,
+            "winners": None,
+            "winner_note": None,
+            "ended_reason": None,
         }
 
-    if not initial_players:
-        raise HTTPException(status_code=400, detail="At least one player is required.")
-
-    room = {
-        "room_token": room_token,
-        "password": password,
-        "game_type": request.game_type,
-        "game_name": game_name,
-        "setup_complete": request.game_type != "custom",
-        "custom_config": None,
-        "players": initial_players,
-        "player_order": player_order,
-        "status": "active",
-        "current_round": 1,
-        "round_history": [],
-        "winner": None,
-        "winners": None,
-        "winner_note": None,
-        "ended_reason": None,
-    }
-
-    GAMES_DB[room_token] = room
-    PASSWORD_INDEX[password] = room_token
+        insert_room(session, room)
+        session.commit()
+    except HTTPException:
+        session.rollback()
+        raise
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="That room password is already in use. Refresh for a new one.",
+        )
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
     return {
         "room_token": room_token,
@@ -483,251 +534,294 @@ def start_game(request: CreateGameRequest):
 def join_by_password(password: str):
     """Grant access to a room via its shareable 4-letter password."""
     key = _normalize_password(password)
-    room_token = PASSWORD_INDEX.get(key)
-    if not room_token or room_token not in GAMES_DB:
+    session = get_session()
+    try:
+        room = fetch_room_by_password(session, key)
+    finally:
+        session.close()
+    if not room:
         raise HTTPException(status_code=404, detail="No room found for that password.")
-    return _public_state(GAMES_DB[room_token])
+    return _public_state(room)
 
 
 @app.get("/game/{room_token}")
 def get_game_state(room_token: str):
-    return _public_state(_get_room(room_token))
+    return _public_state(_require_room(room_token))
 
 
 @app.post("/game/{room_token}/setup")
 def complete_custom_setup(room_token: str, config: CustomGameConfig):
-    room = _get_room(room_token)
-    if room["game_type"] != "custom":
-        raise HTTPException(status_code=400, detail="Only custom games use this setup flow.")
+    try:
+        with room_transaction(room_token) as room:
+            if room["game_type"] != "custom":
+                raise HTTPException(status_code=400, detail="Only custom games use this setup flow.")
 
-    if config.how_to_end == "target_score" and config.target_score is None:
-        raise HTTPException(status_code=400, detail="Target score is required when ending by target score.")
-    if config.how_to_end == "target_score" and not config.target_score_action:
-        raise HTTPException(
-            status_code=400,
-            detail="Choose whether the target score completes a round or ends the game.",
-        )
-    if (
-        config.how_to_end == "target_score"
-        and config.target_score_action == "complete_round"
-        and not config.rounds_count
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="# of rounds completed is required when target score completes a round.",
-        )
+            if config.how_to_end == "target_score" and config.target_score is None:
+                raise HTTPException(status_code=400, detail="Target score is required when ending by target score.")
+            if config.how_to_end == "target_score" and not config.target_score_action:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Choose whether the target score completes a round or ends the game.",
+                )
+            if (
+                config.how_to_end == "target_score"
+                and config.target_score_action == "complete_round"
+                and not config.rounds_count
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="# of rounds completed is required when target score completes a round.",
+                )
 
-    if config.optional_notes and len(config.optional_notes) > 300:
-        raise HTTPException(status_code=400, detail="Optional notes must be 300 characters or fewer.")
+            if config.optional_notes and len(config.optional_notes) > 300:
+                raise HTTPException(status_code=400, detail="Optional notes must be 300 characters or fewer.")
 
-    payload = config.model_dump()
-    # Target that completes rounds implies round-based scoring.
-    if payload["how_to_end"] == "target_score" and payload.get("target_score_action") == "complete_round":
-        payload["how_to_keep_score"] = "in_rounds"
-    if payload["how_to_end"] != "target_score":
-        payload["target_score_action"] = None
-        payload["rounds_count"] = None
-    if payload["how_to_win"] != "low_score":
-        payload["starting_score"] = None
+            payload = config.model_dump()
+            # Target that completes rounds implies round-based scoring.
+            if payload["how_to_end"] == "target_score" and payload.get("target_score_action") == "complete_round":
+                payload["how_to_keep_score"] = "in_rounds"
+            if payload["how_to_end"] != "target_score":
+                payload["target_score_action"] = None
+                payload["rounds_count"] = None
+            if payload["how_to_win"] != "low_score":
+                payload["starting_score"] = None
 
-    room["custom_config"] = payload
-    room["setup_complete"] = True
-    room["status"] = "active"
-    room["current_round"] = 1
-    room["round_history"] = []
-    room["winner"] = None
-    room["winners"] = None
-    room["winner_note"] = None
-    room["ended_reason"] = None
-    room["player_order"] = list(room["players"].keys())
-    for name in room["players"]:
-        room["players"][name] = _fresh_player(payload)
+            room["custom_config"] = payload
+            room["setup_complete"] = True
+            room["status"] = "active"
+            room["current_round"] = 1
+            room["round_history"] = []
+            room["winner"] = None
+            room["winners"] = None
+            room["winner_note"] = None
+            room["ended_reason"] = None
+            room["player_order"] = list(room["players"].keys())
+            for name in room["players"]:
+                room["players"][name] = _fresh_player(payload)
 
-    return {"message": "Custom game setup saved.", "state": _public_state(room)}
+            return {"message": "Custom game setup saved.", "state": _public_state(room)}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
 
 
 @app.post("/game/{room_token}/update")
 def update_score(room_token: str, request: ScoreUpdateRequest):
-    room = _get_room(room_token)
-    _ensure_play_fields(room)
+    try:
+        with room_transaction(room_token) as room:
+            _ensure_play_fields(room)
 
-    if not room["setup_complete"]:
-        raise HTTPException(status_code=400, detail="Finish game setup before scoring.")
-    if room.get("status") == "ended":
-        raise HTTPException(status_code=400, detail="This game has ended.")
+            if not room["setup_complete"]:
+                raise HTTPException(status_code=400, detail="Finish game setup before scoring.")
+            if room.get("status") == "ended":
+                raise HTTPException(status_code=400, detail="This game has ended.")
 
-    if request.player_name not in room["players"]:
-        raise HTTPException(status_code=404, detail="Player not found in this session.")
+            if request.player_name not in room["players"]:
+                raise HTTPException(status_code=404, detail="Player not found in this session.")
 
-    player_data = room["players"][request.player_name]
+            player_data = room["players"][request.player_name]
 
-    if request.metric_name not in player_data["raw_metrics"]:
-        raise HTTPException(status_code=400, detail=f"Invalid metric '{request.metric_name}' for this game.")
+            if request.metric_name not in player_data["raw_metrics"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid metric '{request.metric_name}' for this game.",
+                )
 
-    player_data["raw_metrics"][request.metric_name] = request.value
-    player_data["live_total_score"] = GameScoringEngine.calculate_totals(
-        room["game_name"],
-        player_data["raw_metrics"],
-        room["game_type"],
-    )
+            player_data["raw_metrics"][request.metric_name] = request.value
+            player_data["live_total_score"] = GameScoringEngine.calculate_totals(
+                room["game_name"],
+                player_data["raw_metrics"],
+                room["game_type"],
+            )
 
-    # Incremental scores are the running total; round mode keeps a separate cumulative.
-    if _config(room).get("how_to_keep_score") == "incrementally":
-        player_data["cumulative_score"] = player_data["live_total_score"]
+            # Incremental scores are the running total; round mode keeps a separate cumulative.
+            if _config(room).get("how_to_keep_score") == "incrementally":
+                player_data["cumulative_score"] = player_data["live_total_score"]
 
-    _check_target_end(room)
+            _check_target_end(room)
 
-    return {"message": "Score updated live!", "updated_player": player_data, "state": _public_state(room)}
+            return {
+                "message": "Score updated live!",
+                "updated_player": player_data,
+                "state": _public_state(room),
+            }
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
 
 
 @app.post("/game/{room_token}/players")
 def add_player(room_token: str, request: AddPlayerRequest):
-    room = _get_room(room_token)
-    _ensure_play_fields(room)
+    try:
+        with room_transaction(room_token) as room:
+            _ensure_play_fields(room)
 
-    if not room["setup_complete"]:
-        raise HTTPException(status_code=400, detail="Finish game setup before adding players.")
-    if room.get("status") == "ended":
-        raise HTTPException(status_code=400, detail="This game has ended.")
+            if not room["setup_complete"]:
+                raise HTTPException(status_code=400, detail="Finish game setup before adding players.")
+            if room.get("status") == "ended":
+                raise HTTPException(status_code=400, detail="This game has ended.")
 
-    name = request.player_name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Player name is required.")
-    if name in room["players"]:
-        raise HTTPException(status_code=409, detail="That player is already in this room.")
+            name = request.player_name.strip()
+            if not name:
+                raise HTTPException(status_code=400, detail="Player name is required.")
+            if name in room["players"]:
+                raise HTTPException(status_code=409, detail="That player is already in this room.")
 
-    room["players"][name] = _fresh_player(_config(room))
-    room["player_order"].append(name)
+            room["players"][name] = _fresh_player(_config(room))
+            room["player_order"].append(name)
 
-    return {"message": f"{name} joined the table.", "state": _public_state(room)}
+            return {"message": f"{name} joined the table.", "state": _public_state(room)}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
 
 
 @app.post("/game/{room_token}/starting-score")
 def set_starting_score(room_token: str, request: StartingScoreRequest):
-    room = _get_room(room_token)
-    _ensure_play_fields(room)
+    try:
+        with room_transaction(room_token) as room:
+            _ensure_play_fields(room)
 
-    if not room["setup_complete"]:
-        raise HTTPException(status_code=400, detail="Finish game setup first.")
-    if room.get("status") == "ended":
-        raise HTTPException(status_code=400, detail="This game has ended.")
+            if not room["setup_complete"]:
+                raise HTTPException(status_code=400, detail="Finish game setup first.")
+            if room.get("status") == "ended":
+                raise HTTPException(status_code=400, detail="This game has ended.")
 
-    config = _config(room)
-    if config.get("how_to_win") != "low_score":
-        raise HTTPException(status_code=400, detail="Starting score is only used for Low Score games.")
+            config = _config(room)
+            if config.get("how_to_win") != "low_score":
+                raise HTTPException(status_code=400, detail="Starting score is only used for Low Score games.")
 
-    config["starting_score"] = request.starting_score
-    room["custom_config"] = config
+            config["starting_score"] = request.starting_score
+            room["custom_config"] = config
 
-    points = request.starting_score
-    for player in room["players"].values():
-        player["raw_metrics"] = {"points": points}
-        player["live_total_score"] = points
-        if config.get("how_to_keep_score") == "incrementally":
-            player["cumulative_score"] = points
+            points = request.starting_score
+            for player in room["players"].values():
+                player["raw_metrics"] = {"points": points}
+                player["live_total_score"] = points
+                if config.get("how_to_keep_score") == "incrementally":
+                    player["cumulative_score"] = points
 
-    return {"message": "Starting score applied.", "state": _public_state(room)}
+            return {"message": "Starting score applied.", "state": _public_state(room)}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
 
 
 @app.post("/game/{room_token}/play-again")
 def play_again(room_token: str):
     """Reset scores and rounds for another match with the same players and rules."""
-    room = _get_room(room_token)
-    _ensure_play_fields(room)
+    try:
+        with room_transaction(room_token) as room:
+            _ensure_play_fields(room)
 
-    if not room["setup_complete"]:
-        raise HTTPException(status_code=400, detail="Finish game setup before playing again.")
+            if not room["setup_complete"]:
+                raise HTTPException(status_code=400, detail="Finish game setup before playing again.")
 
-    config = _config(room)
-    if not config:
-        raise HTTPException(status_code=400, detail="Game rules are missing.")
+            config = _config(room)
+            if not config:
+                raise HTTPException(status_code=400, detail="Game rules are missing.")
 
-    room["status"] = "active"
-    room["current_round"] = 1
-    room["round_history"] = []
-    room["winner"] = None
-    room["winners"] = None
-    room["winner_note"] = None
-    room["ended_reason"] = None
-    for name in list(room["players"].keys()):
-        room["players"][name] = _fresh_player(config)
+            room["status"] = "active"
+            room["current_round"] = 1
+            room["round_history"] = []
+            room["winner"] = None
+            room["winners"] = None
+            room["winner_note"] = None
+            room["ended_reason"] = None
+            for name in list(room["players"].keys()):
+                room["players"][name] = _fresh_player(config)
 
-    return {"message": "New game started.", "state": _public_state(room)}
+            return {"message": "New game started.", "state": _public_state(room)}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
 
 
 @app.post("/game/{room_token}/complete-round")
 def complete_round(room_token: str):
-    room = _get_room(room_token)
-    _ensure_play_fields(room)
+    try:
+        with room_transaction(room_token) as room:
+            _ensure_play_fields(room)
 
-    if not room["setup_complete"]:
-        raise HTTPException(status_code=400, detail="Finish game setup before scoring.")
-    if room.get("status") == "ended":
-        raise HTTPException(status_code=400, detail="This game has ended.")
+            if not room["setup_complete"]:
+                raise HTTPException(status_code=400, detail="Finish game setup before scoring.")
+            if room.get("status") == "ended":
+                raise HTTPException(status_code=400, detail="This game has ended.")
 
-    config = _config(room)
-    if config.get("how_to_keep_score") != "in_rounds":
-        raise HTTPException(status_code=400, detail="Complete round is only used for round-based scoring.")
+            config = _config(room)
+            if config.get("how_to_keep_score") != "in_rounds":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Complete round is only used for round-based scoring.",
+                )
 
-    finished_round = room["current_round"]
-    _apply_complete_round(room)
+            finished_round = room["current_round"]
+            _apply_complete_round(room)
 
-    return {"message": f"Round {finished_round} complete.", "state": _public_state(room)}
+            return {"message": f"Round {finished_round} complete.", "state": _public_state(room)}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
 
 
 @app.post("/game/{room_token}/end")
 def end_game(room_token: str):
-    room = _get_room(room_token)
-    _ensure_play_fields(room)
+    try:
+        with room_transaction(room_token) as room:
+            _ensure_play_fields(room)
 
-    if not room["setup_complete"]:
-        raise HTTPException(status_code=400, detail="Finish game setup before ending.")
-    if room.get("status") == "ended":
-        return {"message": "Game already ended.", "state": _public_state(room)}
+            if not room["setup_complete"]:
+                raise HTTPException(status_code=400, detail="Finish game setup before ending.")
+            if room.get("status") == "ended":
+                return {"message": "Game already ended.", "state": _public_state(room)}
 
-    # If currently mid-round with round scoring, fold the open round into the record first.
-    config = _config(room)
-    if config.get("how_to_keep_score") == "in_rounds":
-        start = _initial_points(config)
-        if any(int(p.get("live_total_score", 0)) != start for p in room["players"].values()):
-            how_to_win = config.get("how_to_win", "high_score")
-            round_scores = {
-                name: int(data.get("live_total_score", 0))
-                for name, data in room["players"].items()
-            }
-            winners = _pick_winners_by_score(round_scores, how_to_win)
-            for name, data in room["players"].items():
-                data["cumulative_score"] = int(data.get("cumulative_score", 0)) + int(data.get("live_total_score", 0))
-                if name in winners:
-                    data["round_wins"] = int(data.get("round_wins", 0)) + 1
-                data["raw_metrics"] = {"points": start}
-                data["live_total_score"] = start
-            room["round_history"].append({
-                "round": room["current_round"],
-                "scores": round_scores,
-                "winners": winners,
-            })
+            # If currently mid-round with round scoring, fold the open round into the record first.
+            config = _config(room)
+            if config.get("how_to_keep_score") == "in_rounds":
+                start = _initial_points(config)
+                if any(int(p.get("live_total_score", 0)) != start for p in room["players"].values()):
+                    how_to_win = config.get("how_to_win", "high_score")
+                    round_scores = {
+                        name: int(data.get("live_total_score", 0))
+                        for name, data in room["players"].items()
+                    }
+                    winners = _pick_winners_by_score(round_scores, how_to_win)
+                    for name, data in room["players"].items():
+                        data["cumulative_score"] = int(data.get("cumulative_score", 0)) + int(
+                            data.get("live_total_score", 0)
+                        )
+                        if name in winners:
+                            data["round_wins"] = int(data.get("round_wins", 0)) + 1
+                        data["raw_metrics"] = {"points": start}
+                        data["live_total_score"] = start
+                    room["round_history"].append({
+                        "round": room["current_round"],
+                        "scores": round_scores,
+                        "winners": winners,
+                    })
 
-    _end_game(room, "manual")
-    return {"message": "Game ended.", "state": _public_state(room)}
+            _end_game(room, "manual")
+            return {"message": "Game ended.", "state": _public_state(room)}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
 
 
 @app.post("/game/{room_token}/reorder")
 def reorder_players(room_token: str, request: ReorderPlayersRequest):
-    room = _get_room(room_token)
-    _ensure_play_fields(room)
+    try:
+        with room_transaction(room_token) as room:
+            _ensure_play_fields(room)
 
-    if room.get("status") == "ended":
-        raise HTTPException(status_code=400, detail="This game has ended.")
+            if room.get("status") == "ended":
+                raise HTTPException(status_code=400, detail="This game has ended.")
 
-    config = _config(room)
-    if config.get("how_to_sort_players") != "manually":
-        raise HTTPException(status_code=400, detail="Manual sorting is not enabled for this room.")
+            config = _config(room)
+            if config.get("how_to_sort_players") != "manually":
+                raise HTTPException(status_code=400, detail="Manual sorting is not enabled for this room.")
 
-    names = request.player_order
-    current = set(room["players"].keys())
-    if set(names) != current or len(names) != len(current):
-        raise HTTPException(status_code=400, detail="player_order must include each player exactly once.")
+            names = request.player_order
+            current = set(room["players"].keys())
+            if set(names) != current or len(names) != len(current):
+                raise HTTPException(
+                    status_code=400,
+                    detail="player_order must include each player exactly once.",
+                )
 
-    room["player_order"] = names
-    return {"message": "Player order updated.", "state": _public_state(room)}
+            room["player_order"] = names
+            return {"message": "Player order updated.", "state": _public_state(room)}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Game session not found.")
