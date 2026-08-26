@@ -3,7 +3,43 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>TableScore</title>
+  <title>TableScore — Live board game scoring at the table</title>
+  <meta name="description" content="TableScore is a free live scoreboard for board game night. Create a room, share a 4-letter password, and keep score together on phones." />
+  <meta name="robots" content="index,follow" />
+  <meta name="theme-color" content="#0d2a24" />
+  <link rel="canonical" href="__SITE_ORIGIN__/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TableScore" />
+  <meta property="og:title" content="TableScore — Live board game scoring at the table" />
+  <meta property="og:description" content="Create a room, share a password, and score your board game live with friends." />
+  <meta property="og:url" content="__SITE_ORIGIN__/" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="TableScore — Live board game scoring" />
+  <meta name="twitter:description" content="Free live table scoreboard. Share a 4-letter room password and score together." />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "TableScore",
+    "url": "__SITE_ORIGIN__/",
+    "description": "Live board game scoreboard for tabletop nights. Create a room, share a 4-letter password, and keep score together on phones.",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7115873505287711"
+     crossorigin="anonymous"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
@@ -63,22 +99,19 @@
       place-items: center;
       min-height: 72px;
       margin: 0 0 1.1rem;
-      border: 1px dashed rgba(232, 239, 233, 0.22);
       border-radius: 14px;
       background: var(--ad-bg);
-      color: var(--muted);
-      font-size: 0.78rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .ad-slot[hidden] {
-      display: none !important;
+      overflow: hidden;
     }
 
     .ad-slot.footer {
       margin: 1.4rem 0 0;
       min-height: 90px;
+    }
+
+    .ad-slot .adsbygoogle {
+      display: block;
+      width: 100%;
     }
 
     .brand {
@@ -746,7 +779,13 @@
   <div class="app">
     <!-- Lobby -->
     <section id="lobby" class="screen" aria-label="Create a game">
-      <div class="ad-slot" aria-label="Advertisement">Ad placement</div>
+      <div class="ad-slot" aria-label="Advertisement">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-7115873505287711"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
       <p class="game-label">Live table scoring</p>
       <h1 class="brand">TableScore</h1>
       <p class="lede">Set up your table, share the room password, and score together.</p>
@@ -919,7 +958,13 @@
       <p class="error" id="table-error" role="alert"></p>
     </section>
 
-    <div class="ad-slot footer" aria-label="Advertisement">Ad placement</div>
+    <div class="ad-slot footer" aria-label="Advertisement">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-7115873505287711"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+    </div>
   </div>
 
   <script>
@@ -1941,6 +1986,15 @@
     syncWinFields();
     syncEndFields();
     loadPassword();
+
+    // Request an ad for each placement (requires AdSense approval / units).
+    try {
+      document.querySelectorAll("ins.adsbygoogle").forEach(() => {
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      });
+    } catch (err) {
+      /* AdSense blocked or unavailable */
+    }
 
     const hashPassword = location.hash.replace(/^#/, "").trim().toUpperCase();
     if (hashPassword.length === 4) {

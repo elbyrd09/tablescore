@@ -1,5 +1,5 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, Response
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
@@ -34,8 +34,37 @@ def on_startup():
 
 
 @app.get("/")
-def index():
-    return FileResponse(Path(__file__).parent / "index.html")
+def index(request: Request):
+    html_path = Path(__file__).parent / "index.html"
+    html = html_path.read_text(encoding="utf-8")
+    origin = str(request.base_url).rstrip("/")
+    return HTMLResponse(html.replace("__SITE_ORIGIN__", origin))
+
+
+@app.get("/ads.txt")
+def ads_txt():
+    # Required for AdSense seller verification.
+    body = "google.com, pub-7115873505287711, DIRECT, f08c47fec0942fa0\n"
+    return Response(body, media_type="text/plain")
+
+
+@app.get("/robots.txt")
+def robots(request: Request):
+    origin = str(request.base_url).rstrip("/")
+    body = f"User-agent: *\nAllow: /\nSitemap: {origin}/sitemap.xml\n"
+    return Response(body, media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+def sitemap(request: Request):
+    origin = str(request.base_url).rstrip("/")
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"  <url><loc>{origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n"
+        "</urlset>\n"
+    )
+    return Response(body, media_type="application/xml")
 
 # Easy, clean 4-letter English words for room passwords (no profanity).
 ROOM_WORDS = [
