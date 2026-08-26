@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
+import os
 import random
 import uuid
 
@@ -21,6 +22,26 @@ from sqlalchemy.exc import IntegrityError
 
 app = FastAPI(title="Board Game Live Scorer - Prototype")
 
+ROOT = Path(__file__).parent
+
+
+def site_origin(request: Request) -> str:
+    """Public site origin for canonical/OG/sitemap (prefer SITE_URL behind proxies)."""
+    configured = os.getenv("SITE_URL", "").strip().rstrip("/")
+    if configured:
+        return configured
+
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    forwarded_host = (
+        (request.headers.get("x-forwarded-host") or request.headers.get("host") or "")
+        .split(",")[0]
+        .strip()
+    )
+    if forwarded_proto and forwarded_host:
+        return f"{forwarded_proto}://{forwarded_host}"
+
+    return str(request.base_url).rstrip("/")
+
 
 @app.on_event("startup")
 def on_startup():
@@ -35,10 +56,13 @@ def on_startup():
 
 @app.get("/")
 def index(request: Request):
-    html_path = Path(__file__).parent / "index.html"
-    html = html_path.read_text(encoding="utf-8")
-    origin = str(request.base_url).rstrip("/")
-    return HTMLResponse(html.replace("__SITE_ORIGIN__", origin))
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("__SITE_ORIGIN__", site_origin(request)))
+
+
+@app.get("/favicon.svg")
+def favicon():
+    return FileResponse(ROOT / "favicon.svg", media_type="image/svg+xml")
 
 
 @app.get("/ads.txt")
@@ -50,14 +74,14 @@ def ads_txt():
 
 @app.get("/robots.txt")
 def robots(request: Request):
-    origin = str(request.base_url).rstrip("/")
+    origin = site_origin(request)
     body = f"User-agent: *\nAllow: /\nSitemap: {origin}/sitemap.xml\n"
     return Response(body, media_type="text/plain")
 
 
 @app.get("/sitemap.xml")
 def sitemap(request: Request):
-    origin = str(request.base_url).rstrip("/")
+    origin = site_origin(request)
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'

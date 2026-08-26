@@ -8,6 +8,7 @@
   <meta name="robots" content="index,follow" />
   <meta name="theme-color" content="#0d2a24" />
   <link rel="canonical" href="__SITE_ORIGIN__/" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="TableScore" />
@@ -752,6 +753,31 @@
       color: var(--muted);
       line-height: 1.4;
     }
+
+    .seo-blurb {
+      margin: 1.5rem 0 0;
+      padding-top: 1.15rem;
+      border-top: 1px solid var(--line);
+    }
+
+    .seo-blurb h2 {
+      margin: 0 0 0.45rem;
+      font-family: var(--font-ui);
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .seo-blurb p {
+      margin: 0 0 0.65rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .seo-blurb p:last-child {
+      margin-bottom: 0;
+    }
   </style>
 </head>
 <body>
@@ -804,6 +830,22 @@
       </form>
 
       <p class="error" id="lobby-error" role="alert"></p>
+
+      <aside class="seo-blurb" aria-label="About TableScore">
+        <h2>Free live board game scorekeeper</h2>
+        <p>
+          TableScore is a phone-friendly scoreboard for tabletop game night. Create a room,
+          share a short password, and everyone at the table can update scores together in real time.
+        </p>
+        <p>
+          Built for custom games and house rules: choose high or low score, end manually or at a
+          target, keep score by rounds or incrementally, and sort players your way—no app install required.
+        </p>
+        <p>
+          Open this site on any phone or laptop at the table. One person creates the room; others join
+          with the password and follow along as totals update live.
+        </p>
+      </aside>
     </section>
 
     <!-- Custom game intake -->
