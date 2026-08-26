@@ -58,7 +58,6 @@
       --radius: 18px;
       --font-ui: "Outfit", sans-serif;
       --font-brand: "Syne", sans-serif;
-      --ad-bg: rgba(7, 25, 20, 0.72);
     }
 
     * { box-sizing: border-box; }
@@ -92,26 +91,6 @@
       margin: 0 auto;
       padding: 1rem 1.1rem 2.5rem;
       min-height: 100dvh;
-    }
-
-    .ad-slot {
-      display: grid;
-      place-items: center;
-      min-height: 72px;
-      margin: 0 0 1.1rem;
-      border-radius: 14px;
-      background: var(--ad-bg);
-      overflow: hidden;
-    }
-
-    .ad-slot.footer {
-      margin: 1.4rem 0 0;
-      min-height: 90px;
-    }
-
-    .ad-slot .adsbygoogle {
-      display: block;
-      width: 100%;
     }
 
     .brand {
@@ -779,13 +758,6 @@
   <div class="app">
     <!-- Lobby -->
     <section id="lobby" class="screen" aria-label="Create a game">
-      <div class="ad-slot" aria-label="Advertisement">
-        <ins class="adsbygoogle"
-             style="display:block"
-             data-ad-client="ca-pub-7115873505287711"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
       <p class="game-label">Live table scoring</p>
       <h1 class="brand">TableScore</h1>
       <p class="lede">Set up your table, share the room password, and score together.</p>
@@ -957,14 +929,6 @@
       <p class="hint">Scores refresh live</p>
       <p class="error" id="table-error" role="alert"></p>
     </section>
-
-    <div class="ad-slot footer" aria-label="Advertisement">
-      <ins class="adsbygoogle"
-           style="display:block"
-           data-ad-client="ca-pub-7115873505287711"
-           data-ad-format="auto"
-           data-full-width-responsive="true"></ins>
-    </div>
   </div>
 
   <script>
@@ -1986,15 +1950,6 @@
     syncWinFields();
     syncEndFields();
     loadPassword();
-
-    // Request an ad for each placement (requires AdSense approval / units).
-    try {
-      document.querySelectorAll("ins.adsbygoogle").forEach(() => {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      });
-    } catch (err) {
-      /* AdSense blocked or unavailable */
-    }
 
     const hashPassword = location.hash.replace(/^#/, "").trim().toUpperCase();
     if (hashPassword.length === 4) {
