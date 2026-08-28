@@ -65,18 +65,18 @@ def favicon():
     return FileResponse(ROOT / "favicon.svg", media_type="image/svg+xml")
 
 
-@app.get("/ads.txt")
+@app.api_route("/ads.txt", methods=["GET", "HEAD"])
 def ads_txt():
-    # Required for AdSense seller verification.
+    # Required for AdSense seller verification. Support HEAD — crawlers often probe with it.
     body = "google.com, pub-7115873505287711, DIRECT, f08c47fec0942fa0\n"
-    return Response(body, media_type="text/plain")
+    return Response(body, media_type="text/plain; charset=utf-8")
 
 
-@app.get("/robots.txt")
+@app.api_route("/robots.txt", methods=["GET", "HEAD"])
 def robots(request: Request):
     origin = site_origin(request)
     body = f"User-agent: *\nAllow: /\nSitemap: {origin}/sitemap.xml\n"
-    return Response(body, media_type="text/plain")
+    return Response(body, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/sitemap.xml")
