@@ -20,6 +20,17 @@ from db import (
 )
 from sqlalchemy.exc import IntegrityError
 
+from site_pages import (
+    ABOUT_BODY,
+    GUIDE_LIVE_BODY,
+    GUIDE_SCOREKEEPER_BODY,
+    GUIDES_INDEX_BODY,
+    HOW_IT_WORKS_BODY,
+    PRIVACY_BODY,
+    SITEMAP_PATHS,
+    render_site_page,
+)
+
 app = FastAPI(title="Board Game Live Scorer - Prototype")
 
 ROOT = Path(__file__).parent
@@ -82,13 +93,97 @@ def robots(request: Request):
 @app.get("/sitemap.xml")
 def sitemap(request: Request):
     origin = site_origin(request)
+    urls = "\n".join(
+        f"  <url><loc>{origin}{path if path != '/' else '/'}</loc>"
+        f"<changefreq>weekly</changefreq>"
+        f"<priority>{'1.0' if path == '/' else '0.7'}</priority></url>"
+        for path in SITEMAP_PATHS
+    )
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-        f"  <url><loc>{origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n"
+        f"{urls}\n"
         "</urlset>\n"
     )
     return Response(body, media_type="application/xml")
+
+
+@app.get("/about")
+def about_page(request: Request):
+    origin = site_origin(request)
+    return render_site_page(
+        request,
+        origin=origin,
+        title="About TableScore — live board game scorekeeper",
+        description="TableScore is a free live scoreboard for board game night. Create a room, share a password, and score together on phones.",
+        path="/about",
+        body_html=ABOUT_BODY,
+    )
+
+
+@app.get("/how-it-works")
+def how_it_works_page(request: Request):
+    origin = site_origin(request)
+    return render_site_page(
+        request,
+        origin=origin,
+        title="How TableScore works — create a room and score live",
+        description="Create a TableScore room, share a four-letter password, set custom scoring rules, and keep totals in sync on every phone at the table.",
+        path="/how-it-works",
+        body_html=HOW_IT_WORKS_BODY,
+    )
+
+
+@app.get("/privacy")
+def privacy_page(request: Request):
+    origin = site_origin(request)
+    return render_site_page(
+        request,
+        origin=origin,
+        title="Privacy — TableScore",
+        description="How TableScore handles room data, logs, and advertising on boardgameallstars.com.",
+        path="/privacy",
+        body_html=PRIVACY_BODY,
+    )
+
+
+@app.get("/guides")
+def guides_index(request: Request):
+    origin = site_origin(request)
+    return render_site_page(
+        request,
+        origin=origin,
+        title="TableScore guides — live scoring tips",
+        description="Practical guides for using a live board game scoreboard and free scorekeeper at game night.",
+        path="/guides",
+        body_html=GUIDES_INDEX_BODY,
+    )
+
+
+@app.get("/guides/live-board-game-scoreboard")
+def guide_live(request: Request):
+    origin = site_origin(request)
+    return render_site_page(
+        request,
+        origin=origin,
+        title="Live board game scoreboard at the table — TableScore",
+        description="How a shared live scoreboard on phones keeps game night totals clear without a crowded paper pad.",
+        path="/guides/live-board-game-scoreboard",
+        body_html=GUIDE_LIVE_BODY,
+    )
+
+
+@app.get("/guides/board-game-scorekeeper")
+def guide_scorekeeper(request: Request):
+    origin = site_origin(request)
+    return render_site_page(
+        request,
+        origin=origin,
+        title="Free board game scorekeeper for custom games — TableScore",
+        description="Use TableScore as a free scorekeeper for house rules: high or low score, targets, and round-based play.",
+        path="/guides/board-game-scorekeeper",
+        body_html=GUIDE_SCOREKEEPER_BODY,
+    )
 
 # Easy, clean 4-letter English words for room passwords (no profanity).
 ROOM_WORDS = [

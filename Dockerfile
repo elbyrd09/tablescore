@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py db.py index.html favicon.svg ./
+COPY main.py db.py site_pages.py index.html favicon.svg ./
 
 EXPOSE 8000
 
